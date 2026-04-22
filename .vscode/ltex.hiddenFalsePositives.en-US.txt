@@ -1,0 +1,1 @@
+{"rule":"AGREEMENT_SENT_START_2","sentence":"^\\QTime scales\nExplains how it was done\\E$"}

@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment (IMPORTANT)
+computing_project.venv/
+venv/
+.env/
+
+# Data / outputs
+*.csv
+*.npy
+*.pkl
+*.h5
+data/
+outputs/
+results/
