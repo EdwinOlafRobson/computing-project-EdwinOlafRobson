@@ -1,0 +1,1 @@
+$\frac{1}{|\vec{R}-\vec{r'}|} = \sum_{n=0}^{2} \frac{1}{n!} (\vec{r'} \dot \nabla)^{n} \left [\frac{1}{|\vec{R}|} \right ], \vec{R} = \vec{R_{t}} - \vec{R_{s}}$

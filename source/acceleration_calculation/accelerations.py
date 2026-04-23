@@ -1,6 +1,7 @@
 import numpy as np
 from . import barnes_hut 
 from . import fast_multipole
+from . import fast_multipole_simple 
 
 
 def gravitational_pairwise_acceleration(system, G=1, softening=1e-5):
@@ -57,7 +58,7 @@ def gravitational_vectorised_acceleration(system, G=1, softening=1e-5):
 
 def gravitational_barnes_hut_acceleration(system, G=1, softening=1e-5, threshold=0.5):
 
-    # Barnes-Hut method. 
+    """ Barnes-Hut method. """
 
     positions = system.positions
     N = system.N
@@ -84,62 +85,27 @@ def gravitational_barnes_hut_acceleration(system, G=1, softening=1e-5, threshold
     return acc
 
 
-def gravitational_fmm_acceleration(system, G=1, softening=1e-5, expansion_order=4):
-    """Compute gravitational accelerations for all particles using the
-    Fast Multipole Method (FMM).
 
-    Parameters
-    ----------
-    system          : object with attributes
-                          positions  – (N, 3) float array
-                          N          – number of particles
-    G               : gravitational constant (default 1)
-    softening       : Plummer softening length to avoid singularities (default 1e-5)
-    expansion_order : number of terms in the multipole / local expansions,
-                      capped at 5 (default 4)
+def gravitational_fmm_simple_acceleration(system, G=1, softening=1e-5):
 
-    Returns
-    -------
-    acceleration : (N, 3) numpy array of gravitational accelerations
-    """
-    expansion_order = min(int(expansion_order), 5)
+    """ Second order Fast Multipole Methid implementation."""
 
+    # Bounding box
     positions = system.positions
-    N         = system.N
-
-    # ------------------------------------------------------------------
-    # 1. Build oct-tree
-    # ------------------------------------------------------------------
     minimum_position = np.min(positions, axis=0)
     maximum_position = np.max(positions, axis=0)
-    centre           = 0.5 * (minimum_position + maximum_position)
-    size             = np.max(maximum_position - minimum_position)
-
-    root = fast_multipole.OctTreeNode(centre, size / 2.0, expansion_order)
+    centre = 0.5 * (minimum_position + maximum_position)
+    size = np.max(maximum_position - minimum_position)
+ 
+    root = fast_multipole_simple.OctTreeNode(centre, size / 2.0)
     root.depth = 0
+ 
+    for particle_index in range(system.N):
+        fast_multipole_simple.insert(root, system, particle_index)
+ 
 
-    for particle_index in range(N):
-        fast_multipole.insert(root, system, particle_index)
-
-    # ------------------------------------------------------------------
-    # 2. Upward pass: compute mass distribution + multipole expansions
-    # ------------------------------------------------------------------
-    fast_multipole.compute_mass_distribution(root, system)
-    fast_multipole.upward_pass(root, system)
-
-    # ------------------------------------------------------------------
-    # 3. Build interaction lists (structural, true O(N) FMM criterion)
-    # ------------------------------------------------------------------
-    fast_multipole.build_interaction_lists(root)
-
-    # ------------------------------------------------------------------
-    # 4. Downward pass: M2L translations + L2L propagation
-    # ------------------------------------------------------------------
-    fast_multipole.downward_pass(root)
-
-    # ------------------------------------------------------------------
-    # 5. Leaf evaluation: L2P (far-field) + P2P (near-field)
-    # ------------------------------------------------------------------
-    acceleration = fast_multipole.evaluate_leaves(root, system, G, softening)
-
-    return acceleration
+    fast_multipole_simple.upward_pass(root, system)
+    fast_multipole_simple.build_interaction_lists(root)
+    fast_multipole_simple.downward_pass(root)
+ 
+    return fast_multipole_simple.evaluate_leaves(root, system, G, softening)

@@ -15,12 +15,12 @@ import physical_tests
 
 
 trajectory_positions, trajectory_velocities = system.simulate(
-    system.gravitational_constant_random_position_no_net_velocity(N=30, box_size=6, max_velocity=2),
+    system.gravitational_uniform_position_stationary_velocity(N=27, box_size=3),
     step_function= time_step.leapfrog_step,
-    acceleration_function = accelerations.gravitational_fmm_acceleration,
+    acceleration_function = accelerations.gravitational_fmm_simple_acceleration,
     steps = 100,
     dt = 0.001,
-    G = 100,
+    G = 1,
     softening = 1e-5,
 
 )
