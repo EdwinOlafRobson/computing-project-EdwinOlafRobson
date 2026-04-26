@@ -6,7 +6,7 @@
 * Explains why Virialisation is important and why we should care.
 * Briefly states where the field of research currently is.
 * These are toy problems but understanding how to approach them improves better models.
-* States looking at timescales and KE distributions.
+* States looking at timescales and energy and momentum conservation.
 * Introduces why having good algorithms is important.
 
 
