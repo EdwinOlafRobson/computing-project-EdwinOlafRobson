@@ -5,13 +5,9 @@ def leapfrog_step(system, acceleration_function, dt):
     ''' Velocity Verlet integrator. 1/2 steps velocity around position. '''
 
     acc = acceleration_function(system)
-
     system.velocities += 0.5 * dt * acc
-
     system.positions += dt * system.velocities
-
     acc_new = acceleration_function(system)
-
     system.velocities += 0.5 * dt * acc_new
 
     return system
@@ -22,9 +18,7 @@ def simple_step(system, acceleration_function, dt):
     ''' Naieve implementation. '''
 
     acc = acceleration_function(system)
-
     system.velocities += dt * acc
-
     system.positions += dt * system.velocities
 
     return system
@@ -37,8 +31,7 @@ def copy_system(system, positions, velocities):
     return type(system)(
         positions.copy(),
         velocities.copy(),
-        system.masses.copy(),
-        system.charges.copy()
+
     )
 
 

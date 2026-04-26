@@ -22,8 +22,6 @@ def gravitational_potential_energy(positions, G=1, softening=1e-5):
     return potential_energy
 
 
-
-
 def gravitational_potential_energy_time(trajectory_positions, G=1, softening=1e-5):
  
     '''Vectorised GPE using same structure as acceleration. 
@@ -69,61 +67,24 @@ def virial(trajectory_positions, trajectory_velocities):
     return PE + 2*KE
 
 
-def virial_n_filtering(virial_array, n):
+def virial_ratio(trajectory_positions, trajectory_velocities):
+    
+    time = trajectory_positions.shape[0]
+    PE = np.zeros(time)
+    for i in range(time):
+        PE[i] = gravitational_potential_energy(trajectory_positions[i])
 
-    """ Removes the n biggest unphysical discontinuities in the virial."""
+    KE = 0.5*np.sum(trajectory_velocities**2, axis=(1,2))
 
-    virial_copy = virial_array.copy()
-    
-    diffs = np.diff(virial_copy)
-    pos_idx = np.where(diffs > 0)[0]
-    if len(pos_idx) == 0:
-        return virial_copy 
-    
-    largest = pos_idx[np.argsort(diffs[pos_idx])[-n:]]
-    
-    largest = np.sort(largest)
-    
+    return 2*KE / abs(PE)
 
-    for i in largest:
-        jump = virial_copy[i+1] - virial_copy[i]
-        virial_copy[i+1:] -= jump
-    
-    return virial_copy 
-    
-def virial_filter_adaptive(virial, k=3.0, smooth=True):
-    v = virial.copy()
-    N = len(v)
-    diffs = np.diff(v)
-    
+def total_normalised_momentum(trajectory_velocities):
 
-    mu = np.mean(diffs)
-    sigma = np.std(diffs)
-    threshold = mu + k * sigma
-  
-    jump_indices = np.where(diffs > threshold)[0]
-    
-    if len(jump_indices) == 0:
-        return v - v[-1]
-    
-    for i in jump_indices:
-        jump = v[i+1] - v[i]
-        tail_len = N - (i + 1)
-        
-        if tail_len <= 0:
-            continue
-        
-        if smooth:
+    ''' Returns the sum of the squares of the momentum'''
 
-            ramp = np.linspace(0, 1, tail_len)
-            v[i+1:] -= jump * ramp
-        else:
-
-            v[i+1:] -= jump
-    v -= v[-1]
-    
-    return v
-
+    momentum = np.sum(trajectory_velocities, axis = 1)
+    momentum_norm = np.linalg.norm(momentum, axis = 1)
+    return momentum_norm
 
 
 def plot(virial):

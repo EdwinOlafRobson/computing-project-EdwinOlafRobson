@@ -1,7 +1,6 @@
 import numpy as np
 from . import barnes_hut 
 from . import fast_multipole
-from . import fast_multipole_simple 
 
 
 def gravitational_pairwise_acceleration(system, G=1, softening=1e-5):
@@ -86,7 +85,7 @@ def gravitational_barnes_hut_acceleration(system, G=1, softening=1e-5, threshold
 
 
 
-def gravitational_fmm_simple_acceleration(system, G=1, softening=1e-5):
+def gravitational_fmm_acceleration(system, G=1, softening=1e-5):
 
     """ Second order Fast Multipole Methid implementation."""
 
@@ -97,15 +96,15 @@ def gravitational_fmm_simple_acceleration(system, G=1, softening=1e-5):
     centre = 0.5 * (minimum_position + maximum_position)
     size = np.max(maximum_position - minimum_position)
  
-    root = fast_multipole_simple.OctTreeNode(centre, size / 2.0)
+    root = fast_multipole.OctTreeNode(centre, size / 2.0)
     root.depth = 0
  
     for particle_index in range(system.N):
-        fast_multipole_simple.insert(root, system, particle_index)
+        fast_multipole.insert(root, system, particle_index)
  
 
-    fast_multipole_simple.upward_pass(root, system)
-    fast_multipole_simple.build_interaction_lists(root)
-    fast_multipole_simple.downward_pass(root)
+    fast_multipole.upward_pass(root, system)
+    fast_multipole.build_interaction_lists(root)
+    fast_multipole.downward_pass(root)
  
-    return fast_multipole_simple.evaluate_leaves(root, system, G, softening)
+    return fast_multipole.evaluate_leaves(root, system, G, softening)
