@@ -4,7 +4,14 @@ import numpy as np
 class NBodySystem:
     def __init__(self, positions, velocities):
 
-        # Positions and velocities are N by 3 numpy arrays.
+        ''' Positions and velocities are N by 3 numpy arrays.'''
+
+        if positions.shape[0] != velocities.shape[0]:
+            raise ValueError(
+                f"\n*** Different numbers of particle for position and velocity***")
+        
+        if positions.shape[1] != 3 or velocities.shape[1] != 3:
+            raise ValueError(f"\n*** Positions or velocities are not 3 dimensional***")
 
         self.positions = np.array(positions, dtype=float)      
         self.velocities = np.array(velocities, dtype=float)  
@@ -36,6 +43,8 @@ def simulate(system,
         step_function(system, acceleration_function_with_arguments, dt)
     
     return trajectory_positions, trajectory_velocities
+
+   
         
 def cubic_lattice(N, box_size=1):
     

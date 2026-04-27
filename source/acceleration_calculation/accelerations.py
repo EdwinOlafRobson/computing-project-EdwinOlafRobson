@@ -33,7 +33,7 @@ def gravitational_pairwise_acceleration(system, G=1, softening=1e-5):
 
 def gravitational_vectorised_acceleration(system, G=1, softening=1e-5):
 
-    '''Naive approach with Numpy broadcasting.'''
+    ''' Naive approach with Numpy broadcasting.'''
     # ~320 times faster than Numpy loops.
 
     positions = system.positions
@@ -47,7 +47,6 @@ def gravitational_vectorised_acceleration(system, G=1, softening=1e-5):
     np.fill_diagonal(inverse_distance_cubed, 0)
 
     forces_div_masses = -G * dx * inverse_distance_cubed[:, :, np.newaxis] 
-
     acceleration = np.sum(forces_div_masses, axis=1)
 
     return acceleration
