@@ -103,9 +103,6 @@ def compute_mass_distribution(node, system):
     return total_mass, com
     
 
-
-
-
 def compute_gravitational_acceleration(node, system, i, theta, G, softening):
 
     ''' Uses Barnes-Hut to find the gravitational acceleration on particle i due to a node. '''
