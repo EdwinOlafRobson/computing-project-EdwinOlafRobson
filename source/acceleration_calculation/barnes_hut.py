@@ -10,9 +10,7 @@ class OctTreeNode:
 
         self.mass = 0
         self.centre_of_mass = np.zeros(3)
-
-        self.charge = 0
-        self.centre_of_charge = np.zeros(3)
+        
 
 
 def get_octant(node, position):
