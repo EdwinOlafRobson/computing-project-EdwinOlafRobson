@@ -90,11 +90,11 @@ def run_all(method_label, step_function, acceleration_function, **kwargs):
 print("Starting benchmark suite...")
 
 
-run_all(
+'''run_all(
     method_label="vectorised",
     step_function=time_step.leapfrog_step,
     acceleration_function=accelerations.gravitational_vectorised_acceleration
-)
+)'''
 
 run_all(
     method_label="fmm",
@@ -102,25 +102,25 @@ run_all(
     acceleration_function=accelerations.gravitational_fmm_acceleration
 )
 
-run_all(
+'''run_all(
     method_label="bh_0",
     step_function=time_step.leapfrog_step,
     acceleration_function=accelerations.gravitational_barnes_hut_acceleration,
     threshold=0
-)
+)'''
 
-run_all(
+'''run_all(
     method_label="bh_0.5",
     step_function=time_step.leapfrog_step,
     acceleration_function=accelerations.gravitational_barnes_hut_acceleration,
     threshold=0.5
-)
+)'''
 
-run_all(
+'''run_all(
     method_label="bh_1",
     step_function=time_step.leapfrog_step,
     acceleration_function=accelerations.gravitational_barnes_hut_acceleration,
     threshold=1
-)
+)'''
 
 print("Benchmark complete")

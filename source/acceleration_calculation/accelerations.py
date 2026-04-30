@@ -84,7 +84,7 @@ def gravitational_barnes_hut_acceleration(system, G=1, softening=1e-5, threshold
 
 
 
-def gravitational_fmm_acceleration(system, G=1, softening=1e-5):
+def gravitational_fmm_acceleration(system, G=1, softening = 1e-5):
 
     """ Second order Fast Multipole Methid implementation."""
 
@@ -95,15 +95,21 @@ def gravitational_fmm_acceleration(system, G=1, softening=1e-5):
     centre = 0.5 * (minimum_position + maximum_position)
     size = np.max(maximum_position - minimum_position)
  
-    root = fast_multipole.OctTreeNode(centre, size / 2.0)
-    root.depth = 0
- 
-    for particle_index in range(system.N):
-        fast_multipole.insert(root, system, particle_index)
- 
+    root_node = fast_multipole.OctTreeNode(centre, size / 2)
+    root_node.depth = 0
+    softening_implementation = softening
+    
+    particle_number = system.N
+    max_depth = np.ceil(np.log(particle_number) / np.log(8))
+    particle_positions = system.positions
 
-    fast_multipole.upward_pass(root, system)
-    fast_multipole.build_interaction_lists(root)
-    fast_multipole.downward_pass(root)
- 
-    return fast_multipole.evaluate_leaves(root, system, G, softening)
+    fast_multipole.tree(root_node, max_depth)
+    fast_multipole.populate_tree(root_node, max_depth, system.positions, particle_number)
+    fast_multipole.upwards_path(root_node, max_depth, particle_positions)
+    accelerations = fast_multipole.downward_pass(root_node, max_depth, particle_positions)
+
+    acc = accelerations * G
+    return acc
+
+
+  

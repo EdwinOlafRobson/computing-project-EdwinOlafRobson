@@ -1,19 +1,35 @@
 import numpy as np
- 
+
+class NBodySystem:
+    def __init__(self, positions, velocities):
+
+        ''' Positions and velocities are N by 3 numpy arrays.'''
+
+        if positions.shape[0] != velocities.shape[0]:
+            raise ValueError(
+                f"\n*** Different numbers of particle for position and velocity***")
+        
+        if positions.shape[1] != 3 or velocities.shape[1] != 3:
+            raise ValueError(f"\n*** Positions or velocities are not 3 dimensional***")
+
+        self.positions = np.array(positions, dtype=float)      
+        self.velocities = np.array(velocities, dtype=float)  
+        self.N = len(self.positions)
+
+
 
 class OctTreeNode:
     def __init__(self, centre, half_size):
         self.centre     = np.asarray(centre, dtype=float)
         self.half_size  = float(half_size)
  
-        self.children       = [None] * 8
-        self.parent         = None
-        self.particle_index = None
- 
-        self.mass           = 0.0
-        self.centre_of_mass = np.zeros(3)
-        self.depth          = 0
- 
+        self.children = [] 
+        self.siblings = []
+        self.cousins = []
+        self.parent = None
+        self.particles = []
+        self.depth = 0
+        self.interaction_list = []
 
         # Field from interior particles.
         # Second-order expansion, monopole dipole quarpole, 9 real coefficients
@@ -24,352 +40,432 @@ class OctTreeNode:
         # Field from exterior particles.
         
         self.local = np.zeros(10)
- 
-        self.interaction_list = []
- 
- 
-def get_octant(node, position):
-
-    ''' Finds the octant of a particle. Stores position in bits as {xyz}. '''
-
-    centre = node.centre
-    index = 0
-    if position[0] > centre[0]:
-        index |= 1
-
-    if position[1] > centre[1]: 
-        index |= 2
-
-    if position[2] > centre[2]:
-        index |= 4
-
-    return index
- 
-
-def create_child(node, octant):
-
-    ''' Creates new node from old node.'''
-
-    offset = np.array([
-    0.5 if octant & 1 else -0.5,
-    0.5 if octant & 2 else -0.5,
-    0.5 if octant & 4 else -0.5
-    ])
-
-    child = OctTreeNode(node.centre + offset * node.half_size, node.half_size / 2)
-    child.parent = node
-    child.depth = node.depth + 1
-    return child
- 
- 
-def insert(node, system, index):
-    particle_position = system.positions[index]
-
-    # Empty leaf.
-
-    if node.particle_index is None and node.children[0] is None:
-        node.particle_index = index
-        return
-
-    if node.children[0] is None:
-        for i in range(8):
-            node.children[i] = create_child(node, i)
-
-        # Puts any exising particle into a child node. This is the recursive part.
-
-        if node.particle_index is not None:
-            old_index = node.particle_index
-            node.particle_index = None
-            insert(node, system, old_index)
-
-    octant = get_octant(node, particle_position)
-    insert(node.children[octant], system, index)
 
 
- 
-def monopole_dipole_quadrupole(offset):
-
-    """ Return the 10-element multipole contribution of a point mass of mass unity."""
-
-    coefficients = np.zeros(10)
-    x, y, z = offset
-
-    coefficients[0] = 1
-    coefficients[1] = x
-    coefficients[2] = y
-    coefficients[3] = z
-    coefficients[4] = x * x
-    coefficients[5] = y * y
-    coefficients[6] = z * z
-    coefficients[7] = x * y
-    coefficients[8] = x * z
-    coefficients[9] = y * z
-    return coefficients
- 
- 
-def translate_multipole(multipole, shift):
-    
-    """ Translates the mutlipole expansion by shift to be about a new centre. 
-    Uses up to second order approximations."""
-
-    shifted      = np.zeros(10)
-    q            = multipole[0]
-    dx, dy, dz   = multipole[1], multipole[2], multipole[3]
-    sx, sy, sz   = shift
- 
-    
-    shifted[0] = q
-    
-    shifted[1] = dx + q * sx
-    shifted[2] = dy + q * sy
-    shifted[3] = dz + q * sz
- 
-    # (r + s)^2 = r.r + 2r.s + s.s for quadropole
-    shifted[4] = multipole[4] + 2 * dx * sx + q * sx * sx
-    shifted[5] = multipole[5] + 2 * dy * sy + q * sy * sy
-    shifted[6] = multipole[6] + 2 * dz * sz + q * sz * sz
-    shifted[7] = multipole[7] + dx * sy + dy * sx + q * sx * sy
-    shifted[8] = multipole[8] + dx * sz + dz * sx + q * sx * sz
-    shifted[9] = multipole[9] + dy * sz + dz * sy + q * sy * sz
- 
-    return shifted
- 
- 
- 
-def upward_pass(node, system):
-    if node is None:
-        return
- 
-    if node.particle_index is not None:
-
-        # If the leaf contains a particle do a particle to multipole claculation
-
-        offset = system.positions[node.particle_index] - node.centre
-        node.multipole = monopole_dipole_quadrupole(offset)
-        node.mass = 1
-        node.centre_of_mass = system.positions[node.particle_index].copy()
-        return
- 
-    total_mass     = 0.0
-    centre_of_mass_sum = np.zeros(3)
- 
-    for child in node.children:
-        if child is None:
-            continue
-        upward_pass(child, system)
-        if child.mass == 0.0:
-            continue
- 
-        # Multipole to multipole shift and accumulation
-        shift = child.centre - node.centre
-        node.multipole += translate_multipole(child.multipole, shift)
-        total_mass += child.mass
-        centre_of_mass_sum += child.mass * child.centre_of_mass
- 
-    node.mass = total_mass
-    if total_mass > 0.0:
-        node.centre_of_mass = centre_of_mass_sum / total_mass
- 
- 
-
-def collect_at_depth(node, target_depth):
-
-    """ DFS search that returns how many nodes are at a given depth"""
-
-    if node is None:
-        return []
-    if node.depth == target_depth:
-        return [node]
-    result = []
-    for child in node.children:
-        result.extend(collect_at_depth(child, target_depth))
-    return result
- 
- 
 def adjacent(node_a, node_b):
-
-    ''' Checks if two cells are touching (within 1e-10)'''
-    
+    '''
+    Checks if two cells are touching (within 1e-10)
+    '''
     threshold = 2.0 * node_a.half_size + 1e-10
     return all(abs(node_a.centre[d] - node_b.centre[d]) <= threshold for d in range(3))
- 
- 
-def max_depth(node):
-
-    " Reterns the maximum depth of a node"
-
-    if node is None:
-        return 0
-    if all(child is None for child in node.children):
-        return node.depth
-    return max(max_depth(child) for child in node.children)
 
 
- 
+def cousins(node):
+    '''
+    Fills in the cousin list for a node
+    '''
+    node.cousins = []
+    parent = node.parent
 
-def build_interaction_lists(root):
-
-    """ Build interaction lists of nodes that interact via the multipole expansion.
-    These nodes are non adjacent nodes, of the same depth, in adjacent parent nodes."""
-
-    max_depth_val = max_depth(root)
-
-    for depth in range(2, max_depth_val + 1):
-        nodes = collect_at_depth(root, depth)
-
-        for node in nodes:
-            node.interaction_list = []
-
-        parent_nodes = collect_at_depth(root, depth - 1)
-
-        for node in nodes:
-            if node.parent is None:
-                continue
-
-            # finds neighbouring parents
-            parent_neighbours = [
-                other for other in parent_nodes
-                if adjacent(node.parent, other)
-            ]
-
-            # check children of neighbouring parents
-            for parent_neighbour in parent_neighbours:
-                for candidate in parent_neighbour.children:
-                    if candidate is None or candidate is node:
-                        continue
-                    if not adjacent(node, candidate):
-                        node.interaction_list.append(candidate)
- 
-
-def multipole_to_local(target_node, source_node):
-
-    """ Converts the second order multipole of the source node into a taylor expansion about
-    the centre of the target node."""
-
-    # $\frac{1}{|\vec{R}-\vec{r'}|} = \sum_{n=0}^{2} \frac{1}{n!} (\vec{r'} \dot \nabla)^{n} \left [\frac{1}{|\vec{R}|} \right ], \vec{R} = \vec{R_{t}} - \vec{R_{s}}$
-
-    displacement = target_node.centre - source_node.centre
-    rx, ry, rz = displacement
-    r_sq = rx*rx + ry*ry + rz*rz
-    r = np.sqrt(r_sq)
- 
-    if r < 1e-30:
+    if parent is None:
         return
- 
+    
+
+    for pibling in parent.siblings:
+        for child in pibling.children:
+            node.cousins.append(child)
+
+
+def interaction_list(node):
+    '''
+    Fills in the interacton list from non-adjacent cousins
+    '''
+    for candidate in node.cousins:
+        if adjacent(node, candidate) == False:
+            node.interaction_list.append(candidate)
+
+
+def contains(node, position):
+    '''
+    Checks if a particle is inside a node
+    '''
+    return all(
+        abs(position[d] - node.centre[d]) <= node.half_size
+        for d in range(3)
+    )
+
+
+def insert(particle_positions, index, node):
+    '''
+    Places particles into the node, recuring until it reaches a leaf
+    '''
+    if contains(node, particle_positions[index]) == False:
+        return
+
+    if len(node.children) == 0:
+        node.particles.append(index)
+        return
+
+    for child in node.children:
+        if contains(child, particle_positions[index]):
+            insert(particle_positions, index, child)
+
+
+def create_child(node):
+    ''' 
+    Creates 8 children from a node
+    '''
+    child_half_size = node.half_size / 2
+
+    for i in range(8):
+
+        offset = np.array([
+        0.5 if i & 1 else -0.5,
+        0.5 if i & 2 else -0.5,
+        0.5 if i & 4 else -0.5
+        ])
+
+        child_centre = node.centre + offset * node.half_size
+        child = OctTreeNode(child_centre, child_half_size)
+        
+        child.parent = node
+        child.depth = node.depth + 1
+
+        node.children.append(child)
+
+    for child in node.children:
+        child.siblings = [c for c in node.children if c is not child]
+    
+
+def tree(root_node, max_depth):
+    '''
+    Builds the Tree
+    '''
+    def recurse_create_child(node):
+
+
+        if node.depth == max_depth:
+            return
+
+        create_child(node)
+
+        for child in node.children:
+            recurse_create_child(child)
+
+    recurse_create_child(root_node)
+
+
+def populate_tree(root_node, max_depth, particle_positions, particle_number):
+    '''
+    Inserts particles into the proper nodes, and fills in the node cousins and interaction list
+    '''
+
+    def recurse_cousins(node):
+
+        if node.depth == max_depth:
+            return
+        
+        cousins(node)
+
+        # Recurse
+        for child in node.children:
+            recurse_cousins(child)
+
+    recurse_cousins(root_node)
+
+    def recurse_interaction_list(node):
+
+        if node.depth == max_depth:
+            return
+        
+        interaction_list(node)
+
+        # Recurse
+        for child in node.children:
+            recurse_interaction_list(child)
+
+    recurse_interaction_list(root_node)
+
+    for i in range(particle_number):
+        insert(particle_positions, i, root_node)
+
+
+
+def compute_multipole_expansions(leaf_node, particle_positions):
+    '''
+    Computes 2nd order expansion of the potentisl field inside a leaf about its centre 
+    due to the particles 
+    '''
+    q = 0.0
+    p = np.zeros(3)
+    Q = np.zeros((3, 3))
+
+    for i in leaf_node.particles:
+        r = particle_positions[i] - leaf_node.centre
+
+        q +=1
+        p += r
+        Q +=  (3.0 * np.outer(r, r) - (np.dot(r, r) * np.eye(3)))
+
+    leaf_node.multipole[0] = q
+    leaf_node.multipole[1:4] = p
+    leaf_node.multipole[4] = Q[0, 0]
+    leaf_node.multipole[5] = Q[1, 1]
+    leaf_node.multipole[6] = Q[2, 2]
+    leaf_node.multipole[7] = Q[0, 1]
+    leaf_node.multipole[8] = Q[0, 2]
+    leaf_node.multipole[9] = Q[1, 2]
+
+
+
+def compute_leaf_multipoles(root_node, max_depth, particle_positions):
+    '''
+    Goes through the tree and finds the multipole expansion of every single node
+    '''
+    def recurse(node):
+        if node.depth < max_depth:
+            for child in node.children:
+                recurse(child)
+            return
+
+        compute_multipole_expansions(node, particle_positions)
+
+    recurse(root_node)
+
+
+def shift_multipole(source_node, target_node):
+    '''
+    Shifts multipole expansion from source_node centre to target_node centre.
+    '''
+
+   
+    d = source_node.centre - target_node.centre
+
     q = source_node.multipole[0]
-    dipole = source_node.multipole[1:4]
-    Qxx, Qyy, Qzz = source_node.multipole[4], source_node.multipole[5], source_node.multipole[6]
-    Qxy, Qxz, Qyz = source_node.multipole[7], source_node.multipole[8], source_node.multipole[9]
- 
-    r3 = r_sq * r
-    r5 = r3 * r_sq
-    r7 = r5 * r_sq
- 
-    # Monopole contribution to local field (potential and gradient)
-    # Phi_mono = q / r,  gradient = -q * r_vec / r^3
-    target_node.local[0] +=  q / r
-    target_node.local[1] += -q * rx / r3
-    target_node.local[2] += -q * ry / r3
-    target_node.local[3] += -q * rz / r3
- 
-    # Dipole Phi_dip = (d.r) / r^3
-    dot_d_r = dipole[0]*rx + dipole[1]*ry + dipole[2]*rz
-    target_node.local[0] += dot_d_r / r3
- 
-    # Gradient of dipole potential to get force
-    for axis, r_axis in enumerate((rx, ry, rz)):
-        target_node.local[1 + axis] += (
-            dipole[axis] / r3
-            - 3.0 * dot_d_r * r_axis / r5
-        )
- 
-    # Quadrupole contribution:  Phi_quad = Q_ij r_i r_j / (2 r^5)
-    quad_contraction = (Qxx*rx*rx + Qyy*ry*ry + Qzz*rz*rz
-                        + 2.0*(Qxy*rx*ry + Qxz*rx*rz + Qyz*ry*rz))
-    target_node.local[0] += 0.5 * quad_contraction / r5
- 
-    # Gradient of quadrupole potential to get force
-    Q_dot_r = np.array([
-        Qxx*rx + Qxy*ry + Qxz*rz,
-        Qxy*rx + Qyy*ry + Qyz*rz,
-        Qxz*rx + Qyz*ry + Qzz*rz,
+    p = source_node.multipole[1:4]
+    Q = np.array([
+        [source_node.multipole[4], source_node.multipole[7], source_node.multipole[8]],
+        [source_node.multipole[7], source_node.multipole[5], source_node.multipole[9]],
+        [source_node.multipole[8], source_node.multipole[9], source_node.multipole[6]]
     ])
-    for axis, r_axis in enumerate((rx, ry, rz)):
-        target_node.local[1 + axis] += (
-            Q_dot_r[axis] / r5
-            - 2.5 * quad_contraction * r_axis / r7
-        )
- 
- 
 
-def shift_local(local, shift):
   
-    """ Shifts the far field Taylor expansion in the parent to be in the clid node."""
 
-    shifted    = local.copy()
-    sx, sy, sz = shift
-    # The potential at the new origin picks up the gradient dotted with shift
-    shifted[0] += local[1]*sx + local[2]*sy + local[3]*sz
-    return shifted
- 
- 
-def downward_pass(node):
+    q_new = q
 
-    """ Far field expansions from the parent is moved down into the child."""
-    # Child experiences forces from nodes further away than to be considered in its own expansion.
+    p_new = p + q * d
 
-    if node is None:
-        return
- 
-    for source in node.interaction_list:
-        if source.mass > 0.0:
-            multipole_to_local(node, source)
- 
-    for child in node.children:
-        if child is not None:
-            shift = child.centre - node.centre
-            child.local += shift_local(node.local, shift)
-            downward_pass(child)
- 
- 
+    d_outer_d = np.outer(d, d)
+    d_outer_p = np.outer(d, p)
+    p_outer_d = np.outer(p, d)
 
-def collect_leaves(node):
+    Q_new = (
+        Q
+        + 3.0 * (d_outer_p + p_outer_d)
+        + 3.0 * q * d_outer_d
+        - q * np.dot(d, d) * np.eye(3)
+    )
 
-    """ List of all leaf nodes with partices rooted at the input node."""
 
-    if node is None:
-        return []
-    if node.particle_index is not None:
-        return [node]
-    leaves = []
-    for child in node.children:
-        leaves.extend(collect_leaves(child))
-    return leaves
- 
- 
-def evaluate_leaves(root, system, G, softening):
+    target_node.multipole[0] += q_new
+    target_node.multipole[1:4] += p_new
 
-    """ Applies far field to leaves and neaf field adjacent leave corrections"""
+    target_node.multipole[4] += Q_new[0, 0]
+    target_node.multipole[5] += Q_new[1, 1]
+    target_node.multipole[6] += Q_new[2, 2]
+    target_node.multipole[7] += Q_new[0, 1]
+    target_node.multipole[8] += Q_new[0, 2]
+    target_node.multipole[9] += Q_new[1, 2]
 
-    acceleration = np.zeros((system.N, 3))
-    all_leaves = collect_leaves(root)
- 
-    for leaf in all_leaves:
-        particle_index = leaf.particle_index
-        particle_position = system.positions[particle_index]
 
- 
-        # Local to particle
-        acceleration[particle_index] += G * leaf.local[1:4]
- 
-        # Particle to Particle expansion
-        for other_leaf in all_leaves:
-            if other_leaf is leaf or not adjacent(leaf, other_leaf):
-                continue
-            other_position = system.positions[other_leaf.particle_index]
-            displacement = other_position - particle_position
-            distance_sq = np.dot(displacement, displacement) + softening ** 2
-            distance = np.sqrt(distance_sq)
-            acceleration[particle_index] += G * displacement / (distance_sq * distance)
- 
+
+
+def upwards_path(root_node, max_depth, particle_positions):
+    '''
+    Construct multipole expansion for leaf nodes and propagates them upwards 
+    to the root. 
+    '''
+    compute_leaf_multipoles(root_node, max_depth, particle_positions)
+
+    def recurse(node):
+
+        if node.depth == max_depth:
+            return
+
+        # First recurse to children
+        for child in node.children:
+            recurse(child)
+
+        node.multipole[:] = 0.0
+
+        for child in node.children:
+            shift_multipole(child, node)
+
+    recurse(root_node)
+
+
+def shift_multipole_to_local(source_node, target_node):
+    '''
+    Converts source multipole expansion into a local expansion at target node.
+    (M2L operator, up to quadrupole order)
+    '''
+
+    R = target_node.centre - source_node.centre
+    r = np.linalg.norm(R)
+
+    q = source_node.multipole[0]
+    p = source_node.multipole[1:4]
+    Q = np.array([
+        [source_node.multipole[4], source_node.multipole[7], source_node.multipole[8]],
+        [source_node.multipole[7], source_node.multipole[5], source_node.multipole[9]],
+        [source_node.multipole[8], source_node.multipole[9], source_node.multipole[6]]
+    ])
+
+    I = np.eye(3)
+
+    # Precompute powers
+    r2 = r * r
+    r3 = r2 * r
+    r5 = r3 * r2
+    r7 = r5 * r2
+
+
+    phi = (
+        q / r
+        + np.dot(p, R) / r3
+        + 0.5 * np.sum(Q * (3 * np.outer(R, R) - r2 * I)) / r5
+    )
+
+
+    grad = (
+        -q * R / r3
+        + (p / r3 - 3 * np.dot(p, R) * R / r5)
+        + (np.dot(Q,R) / r5 - 5 * (R @ Q @ R) * R / r7)
+    )
+
+    term1 = q * (3 * np.outer(R, R) - r2*I)/r5
+
+    term2 = (
+        3 * (np.outer(p,R) + np.outer(R,p))/r5
+        - 15 * np.dot(p,R) * np.outer(R,R)/r7
+    )
+
+    term3 = (
+        Q / r5
+        - 5 * (np.outer(np.dot(Q, R), R) + np.outer(R, np.dot(Q, R))) / r7
+    )
+
+    H = term1 + term2 + term3
+
+
+    target_node.local[0] += phi
+    target_node.local[1:4] += grad
+
+    target_node.local[4] += H[0, 0]
+    target_node.local[5] += H[1, 1]
+    target_node.local[6] += H[2, 2]
+    target_node.local[7] += H[0, 1]
+    target_node.local[8] += H[0, 2]
+    target_node.local[9] += H[1, 2]
+
+
+def shift_local(source_node, target_node):
+    '''
+    Shifts local expansion from source_node (parent) centre to target_node (child) centre.
+    (L2L operator, up to quadrupole order)
+    '''
+    d = target_node.centre - source_node.centre
+
+    phi  = source_node.local[0]
+    grad = source_node.local[1:4]
+    H    = np.array([
+        [source_node.local[4], source_node.local[7], source_node.local[8]],
+        [source_node.local[7], source_node.local[5], source_node.local[9]],
+        [source_node.local[8], source_node.local[9], source_node.local[6]]
+    ])
+
+  
+    phi_new  = phi + np.dot(grad, d) + 0.5 * d @ H @ d
+
+
+    grad_new = grad + H @ d
+
+    H_new = H.copy()
+
+    target_node.local[0] += phi_new
+    target_node.local[1:4] += grad_new
+    target_node.local[4] += H_new[0, 0]
+    target_node.local[5] += H_new[1, 1]
+    target_node.local[6] += H_new[2, 2]
+    target_node.local[7] += H_new[0, 1]
+    target_node.local[8] += H_new[0, 2]
+    target_node.local[9] += H_new[1, 2]
+
+def evaluate_local_expansion(leaf_node, particle_position):
+    '''
+    Returns the acceleration that a unit mass expriances at a point due to the potential
+    '''
+
+    r = particle_position - leaf_node.centre
+
+    phi = leaf_node.local[0]
+    g = leaf_node.local[1:4]
+
+    H = np.array([
+        [leaf_node.local[4], leaf_node.local[7], leaf_node.local[8]],
+        [leaf_node.local[7], leaf_node.local[5], leaf_node.local[9]],
+        [leaf_node.local[8], leaf_node.local[9], leaf_node.local[6]]
+    ])
+
+    grad = g + H @ r
+    acceleration = -grad
+
     return acceleration
+
+
+def downward_pass(root_node, max_depth, particle_positions):
+    '''
+    Returns the acclereations of all the particles, found by evaluating the local 
+    expansions of the leaf nodes at the particle positions, then performing particle-particle
+    calculation between cousin nodes
+    '''
+    particle_accelerations = np.zeros_like(particle_positions)
+
+    def recurse(node):
+
+        
+        for source in node.interaction_list:
+            shift_multipole_to_local(source, node)
+
+        if len(node.children) != 0:
+            for child in node.children:
+                shift_local(node, child)
+                recurse(child)
+
+        point_to_point_particles = []
+        point_to_point_particles.extend(node.particles)
+
+        for sibling in node.siblings:
+            
+            point_to_point_particles.extend(sibling.particles)
+        
+        # Point to point over adjacent cousins
+        adjacent_cousins = [x for x in node.cousins if x not in node.interaction_list]
+        for cousin in adjacent_cousins:
+            point_to_point_particles.extend(cousin.particles)
+
+        
+        for particle_index in node.particles:
+            
+            local_acceleration = evaluate_local_expansion(node, particle_positions[particle_index])
+            particle_accelerations[particle_index] += local_acceleration
+
+            point_to_point_acceleration = np.zeros(3)
+            
+            for j in point_to_point_particles:
+                if j != particle_index:
+
+                    displacement = particle_positions[particle_index] - particle_positions[j]
+                    abs_displacement = np.linalg.norm(displacement)
+                    normalised_displacement = displacement / abs_displacement
+
+                    acc = -normalised_displacement/ (abs_displacement ** 2)
+
+                    point_to_point_acceleration += acc
+
+            particle_accelerations[particle_index] += point_to_point_acceleration
+
+
+    recurse(root_node)
+
+    return particle_accelerations

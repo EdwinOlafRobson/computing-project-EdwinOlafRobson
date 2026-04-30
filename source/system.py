@@ -25,7 +25,6 @@ def simulate(system,
             steps,
             dt=0.001,
             G=1, 
-            softening=1e-5,
             **acceleration_kwargs):
 
     '''Simulates and records trajectory of system.'''
@@ -34,7 +33,7 @@ def simulate(system,
     trajectory_velocities = np.zeros((steps, system.N, 3))
 
     def acceleration_function_with_arguments(sys):
-        return acceleration_function(sys, G, softening, **acceleration_kwargs)
+        return acceleration_function(sys, G, **acceleration_kwargs)
 
     for t in range(steps):
         trajectory_positions[t] = system.positions
