@@ -28,7 +28,7 @@ fig.supxlabel(r"Time ($10^{-2}$s)")
 fig.supylabel("Total Energy (J)", x=0.01)
 
 axes[2].legend(loc = "center right")
-fig.suptitle("Total Energy In Different Virial Regiemes")
+fig.suptitle("Total Energy In Different Virial Regimes")
 plt.tight_layout()
 plt.savefig("plots/energy_conservation.png", dpi = 800)
 plt.show()

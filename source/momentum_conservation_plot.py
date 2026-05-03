@@ -34,7 +34,7 @@ fig.supylabel("Total Normalised Momentum (kgm/s)", x=0.01)
 
 axes[2].legend(loc = "upper right")
 
-fig.suptitle("Normalised Momentum In Different Virial Regiemes")
+fig.suptitle("Normalised Momentum In Different Virial Regimes")
 plt.tight_layout()
 plt.savefig("plots/momentum_conservation.png",dpi = 800)
 plt.show()
