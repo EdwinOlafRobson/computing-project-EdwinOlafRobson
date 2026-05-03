@@ -91,7 +91,7 @@ for ax, virial in zip(axes, virials):
     ax.set_xscale('log')
     ax.set_yscale('log')
 
-    ax.set_title(f"Virial = {virial}")
+    ax.set_title(fr"$r_{{Vir}}$ = {virial}")
 
 
 
@@ -106,5 +106,5 @@ fig.supylabel(r"Normalised time ($t/t_{0}$)", x=0.08)
 fig.suptitle("Runtime Scaling Across Virialisation Regimes")
 
 axes[2].legend(loc = "upper left")
-
+plt.savefig("plots/time_complexity.png", dpi = 600)
 plt.show()

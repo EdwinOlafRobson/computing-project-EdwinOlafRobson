@@ -22,12 +22,13 @@ for axis, virial in zip(axes, virials):
     for i in range(len(energies)):
         axis.plot(energies[i], label=labels[i], linestyle=linestyles[i], alpha = 0.9 )
 
-    axis.set_title(f"Virial = {virial}")
+    axis.set_title(rf"$r_{{Vir}}$= {virial}")
 
-fig.supxlabel(r"Time ($10^{-2}$)S")
-fig.supylabel("Total Energy (J)")
+fig.supxlabel(r"Time ($10^{-2}$s)")
+fig.supylabel("Total Energy (J)", x=0.01)
 
-axes[2].legend(loc = "upper right")
+axes[2].legend(loc = "center right")
 fig.suptitle("Total Energy In Different Virial Regiemes")
 plt.tight_layout()
+plt.savefig("plots/energy_conservation.png", dpi = 800)
 plt.show()

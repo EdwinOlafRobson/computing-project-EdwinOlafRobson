@@ -27,7 +27,7 @@ for axis, virial in zip(axes, virials):
             alpha=0.9
         )
 
-    axis.set_title(f"Virial = {virial}")
+    axis.set_title(fr"$r_{{Vir}}$= {virial}")
 
 fig.supxlabel(r"Time ($10^{-2}$)", y=0.05)
 fig.supylabel("Total Normalised Momentum (kgm/s)", x=0.01)
@@ -36,4 +36,5 @@ axes[2].legend(loc = "upper right")
 
 fig.suptitle("Normalised Momentum In Different Virial Regiemes")
 plt.tight_layout()
+plt.savefig("plots/momentum_conservation.png",dpi = 800)
 plt.show()

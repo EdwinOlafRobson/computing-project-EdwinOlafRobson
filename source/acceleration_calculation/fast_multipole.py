@@ -1,23 +1,5 @@
 import numpy as np
 
-class NBodySystem:
-    def __init__(self, positions, velocities):
-
-        ''' Positions and velocities are N by 3 numpy arrays.'''
-
-        if positions.shape[0] != velocities.shape[0]:
-            raise ValueError(
-                f"\n*** Different numbers of particle for position and velocity***")
-        
-        if positions.shape[1] != 3 or velocities.shape[1] != 3:
-            raise ValueError(f"\n*** Positions or velocities are not 3 dimensional***")
-
-        self.positions = np.array(positions, dtype=float)      
-        self.velocities = np.array(velocities, dtype=float)  
-        self.N = len(self.positions)
-
-
-
 class OctTreeNode:
     def __init__(self, centre, half_size):
         self.centre     = np.asarray(centre, dtype=float)
@@ -48,7 +30,7 @@ def adjacent(node_a, node_b):
     '''
     threshold = 2.0 * node_a.half_size + 1e-10
     return all(abs(node_a.centre[d] - node_b.centre[d]) <= threshold for d in range(3))
-
+   
 
 def cousins(node):
     '''
@@ -375,10 +357,10 @@ def shift_local(source_node, target_node):
     ])
 
   
-    phi_new  = phi + np.dot(grad, d) + 0.5 * d @ H @ d
+    phi_new = phi + np.dot(grad, d) + 0.5 * np.dot(d, np.dot(H, d))
 
 
-    grad_new = grad + H @ d
+    grad_new = grad + np.dot(H, d)
 
     H_new = H.copy()
 
@@ -407,7 +389,7 @@ def evaluate_local_expansion(leaf_node, particle_position):
         [leaf_node.local[8], leaf_node.local[9], leaf_node.local[6]]
     ])
 
-    grad = g + H @ r
+    grad = g + np.dot(H, r)
     acceleration = -grad
 
     return acceleration
